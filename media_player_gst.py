@@ -104,7 +104,7 @@ class pygame_handler(object):
 	the same event handling methods, which they can both inherit from this class.
 	"""
 	
-	def __init__(self, main_player, screen, custom_event_code = None):
+	def __init__(self, main_player, screen, experiment, custom_event_code = None):
 		"""
 		Constructor. Set variables to be used in rest of class.
 
@@ -117,6 +117,7 @@ class pygame_handler(object):
 		"""		
 		self.main_player = main_player
 		self.screen = screen
+		self.experiment = experiment
 		self.custom_event_code = custom_event_code	
 	
 	def handle_videoframe(self, frame):
@@ -309,7 +310,7 @@ class OpenGL_renderer(object):
 		GL.glColor4f(1,1,1,1)
 						
 		# Only if a frame has been set, blit it to the texture
-		if hasattr(self,"frame") and not self.frame is None:			    				
+		if hasattr(self,"frame") and not self.frame is None:								
 			GL.glLoadIdentity()
 			GL.glTexSubImage2D( GL.GL_TEXTURE_2D, 0, 0, 0, self.main_player.vidsize[0], self.main_player.vidsize[1], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, self.frame)
 					
@@ -334,7 +335,7 @@ class legacy_handler(pygame_handler):
 	Handles video frames and input supplied by media_player_gst for the legacy backend, which is based on pygame
 	"""
 	
-	def __init__(self, main_player, screen, custom_event_code = None):
+	def __init__(self, main_player, screen, experiment, custom_event_code = None):
 		"""
 		Constructor. Set variables to be used in rest of class.
 
@@ -346,7 +347,7 @@ class legacy_handler(pygame_handler):
 		custom_event_code -- (Compiled) code that is to be called after every frame
 		"""	
 		# Call constructor of super class
-		super(legacy_handler, self).__init__(main_player, screen, custom_event_code )		
+		super(legacy_handler, self).__init__(main_player, screen, experiment, custom_event_code )		
 				
 		# Already create surfaces so this does not need to be redone for every frame
 		# The time to process a single frame should be much shorter this way.				
@@ -615,7 +616,7 @@ class media_player_gst(item.item, generic_response.generic_response):
 
 		# Byte-compile the event handling code (if any)
 		if self.event_handler.strip() != "":
-			custom_event_handler = compile(self.event_handler, "<string>", "exec")
+			custom_event_handler = compile(self.event_handler, u"<string>", u"exec")
 		else:
 			custom_event_handler = None
 
@@ -647,7 +648,7 @@ class media_player_gst(item.item, generic_response.generic_response):
 		# Set handler of frames and user input
 		if self.has("canvas_backend"):
 			if self.get("canvas_backend") == u"legacy" or self.get("canvas_backend") == u"droid":				
-				self.handler = legacy_handler(self, self.experiment.surface, custom_event_handler)
+				self.handler = legacy_handler(self, self.experiment.surface, self.experiment, custom_event_handler)
 			if self.get("canvas_backend") == u"psycho":				
 				self.handler = psychopy_handler(self, self.experiment.window, custom_event_handler)
 			if self.get("canvas_backend") == u"xpyriment":			
@@ -656,7 +657,7 @@ class media_player_gst(item.item, generic_response.generic_response):
 				if self.experiment.fullscreen:				
 					self.handler = expyriment_handler(self, self.experiment.window, custom_event_handler)
 				else:
-					self.handler = legacy_handler(self, self.experiment.window, custom_event_handler)
+					self.handler = legacy_handler(self, self.experiment.window, self.experiment, custom_event_handler)
 		else:
 			# Give a sensible error message if the proper back-end has not been selected
 			raise osexception(u"The media_player plug-in could not determine which backend was used!")		
@@ -676,10 +677,10 @@ class media_player_gst(item.item, generic_response.generic_response):
 		# Info required for color space conversion (YUV->RGB)
 		# masks are necessary for correct display on unix systems
 		self._VIDEO_CAPS = ','.join([
-		    'video/x-raw-rgb',
-		    'red_mask=(int)0xff0000',
-		    'green_mask=(int)0x00ff00',
-		    'blue_mask=(int)0x0000ff',
+			'video/x-raw-rgb',
+			'red_mask=(int)0xff0000',
+			'green_mask=(int)0x00ff00',
+			'blue_mask=(int)0x0000ff',
 		])
 		caps = gst.Caps(self._VIDEO_CAPS)
 
@@ -794,7 +795,7 @@ class media_player_gst(item.item, generic_response.generic_response):
 		"""
 		
 		debug.msg(u"Starting video playback")
-                
+				
 		# Log the onset time of the item
 		self.set_item_onset()
 
@@ -818,7 +819,7 @@ class media_player_gst(item.item, generic_response.generic_response):
 			### Main player loop. While True, the movie is playing
 			start_time = time.time()
 			while self.playing:
-				# Only draw frame to screen if timestamp is still within bounds of that of the player                
+				# Only draw frame to screen if timestamp is still within bounds of that of the player				
 				# Just skip the drawing otherwise (and continue until a frame comes in that is in bounds again)	
 				# self.frame_on_time = True
 				if self.frame_on_time and not self.frame_locked:
@@ -831,10 +832,9 @@ class media_player_gst(item.item, generic_response.generic_response):
 					# Swap buffers to show drawn stuff on screen
 					self.handler.swap_buffers()
 					
+				if not self.paused:						
 					# Increase counter of frames displayed, to calculate real FPS at end of playback
 					self.frames_displayed += 1
-				
-				if not self.paused:						
 					# If connected to EyeLink and indicated that frame info should be sent.												
 					if self.sendInfoToEyelink == u"yes" and hasattr(self.experiment,"eyelink") and self.experiment.eyelink.connected():						
 						self.experiment.eyelink.log(u"videoframe %s" % self.frame_no)
